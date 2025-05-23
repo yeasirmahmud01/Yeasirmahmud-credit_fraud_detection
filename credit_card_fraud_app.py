@@ -1,6 +1,7 @@
 import streamlit as st
-import joblib
 import pandas as pd
+import joblib
+import matplotlib.pyplot as plt
 
 # ─── Page Config & Style ─────────────────────────────────────────────
 st.set_page_config(page_title="Credit Card Fraud Detection", layout="centered")
@@ -80,21 +81,25 @@ h1 {
     position: fixed;
     bottom: 0;
     width: 100vw;
-    background: #232526;
-    background: linear-gradient(90deg, #232526 0%, #414345 100%);
-    color: white;
+    background: #1a1a1a;
+    color: #bbb;
     text-align: center;
-    padding: 0.6rem;
-    font-size: 14px;
-    box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+    padding: 0.4rem 1rem;
+    font-size: 13px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
 }
 .footer a {
-    color: #ff9800;
+    color: #58a6ff;
     text-decoration: none;
-    margin: 0 0.5rem;
+    transition: color 0.25s ease;
+    font-weight: 500;
 }
 .footer a:hover {
+    color: #1e90ff;
     text-decoration: underline;
 }
 </style>
@@ -124,7 +129,7 @@ def load_model_and_scaler():
 
 model, scaler = load_model_and_scaler()
 
-# ─── File uploader ───────────────────────────────────────
+# ─── File Uploader ───────────────────────────────────────
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file:
@@ -135,9 +140,15 @@ if uploaded_file:
 
     if missing_cols:
         st.error(f"CSV missing required columns: {missing_cols}")
+        st.code("Required columns:\n" + ",".join(required_cols), language="text")
     else:
         st.success("✅ File uploaded successfully!")
         st.dataframe(df.head())
+
+        with st.expander("ℹ️ Model & Features Info"):
+            st.write("• Model: Trained on anonymized dataset with V1–V28 features")
+            st.write("• Features 'Time' and 'Amount' scaled with StandardScaler")
+            st.write("• Outputs: Fraud probability + binary classification")
 
         if st.button("Predict"):
             with st.spinner("Detecting fraud..."):
@@ -147,6 +158,9 @@ if uploaded_file:
                     probs = model.predict_proba(X)[:, 1]
                     preds = (probs >= 0.5).astype(int)
 
+                    df['Fraud_Probability'] = probs
+                    df['Prediction'] = preds
+
                     fraud_count = preds.sum()
                     total = len(preds)
                     avg_prob = probs.mean()
@@ -155,10 +169,7 @@ if uploaded_file:
                     verdict_class = "fraud" if fraud_count > 0 else "normal"
 
                     st.markdown(f"<div class='card'><h3>🔍 Prediction Results</h3></div>", unsafe_allow_html=True)
-                    st.markdown(
-                        f"<div class='result-box {verdict_class}'>{verdict}</div>",
-                        unsafe_allow_html=True
-                    )
+                    st.markdown(f"<div class='result-box {verdict_class}'>{verdict}</div>", unsafe_allow_html=True)
                     st.markdown(f"""
                         <div class="summary">
                         Fraudulent Transactions: <b>{fraud_count}</b> / {total}<br>
@@ -166,42 +177,26 @@ if uploaded_file:
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # ─── Visualization ───
+                    st.subheader("📊 Fraud Distribution")
+                    fig, ax = plt.subplots()
+                    ax.bar(['Normal', 'Fraud'], [(preds==0).sum(), (preds==1).sum()], color=['#2e7d32', '#c62828'])
+                    ax.set_ylabel("Count")
+                    ax.set_title("Transaction Class Counts")
+                    st.pyplot(fig)
+
+                    # ─── Download Button ───
+                    csv = df.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Download Predictions", csv, "fraud_predictions.csv", "text/csv")
+
                 except Exception as e:
                     st.error(f"Error during prediction: {e}")
 
 # ─── Footer ─────────────────────────────────────────────
 st.markdown("""
-<style>
-.footer {
-    position: fixed;
-    bottom: 0;
-    width: 100vw;
-    background: #1a1a1a;
-    color: #bbb;
-    text-align: center;
-    padding: 0.4rem 1rem;
-    font-size: 13px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    border-top: 1px solid #333;
-    display: flex;
-    justify-content: center;
-    gap: 1.2rem;
-}
-.footer a {
-    color: #58a6ff;
-    text-decoration: none;
-    transition: color 0.25s ease;
-    font-weight: 500;
-}
-.footer a:hover {
-    color: #1e90ff;
-    text-decoration: underline;
-}
-</style>
 <div class="footer">
     <div>Contact: <a href="mailto:yeasir.mahmud2503@gmail.com">yeasir.mahmud2503@gmail.com</a></div>
     <div><a href="https://github.com/yeasirmahmud01/Yeasirmahmud-credit_fraud_detection" target="_blank">GitHub</a></div>
     <div>Credits: <b>Yeasir Mahmud</b></div>
 </div>
 """, unsafe_allow_html=True)
-
